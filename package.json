@@ -1,0 +1,25 @@
+{
+  "name": "lua-twitch-testbench",
+  "version": "1.0.0",
+  "description": "Mocked Twitch Server for Lua V Lucky",
+  "main": "index.js",
+  "scripts": {
+    "test": "test",
+    "start": "node index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FomTarro/lua-twitch-testbench.git"
+  },
+  "author": "Skeletom",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/FomTarro/lua-twitch-testbench/issues"
+  },
+  "homepage": "https://github.com/FomTarro/lua-twitch-testbench#readme",
+  "dependencies": {
+    "dotenv": "8.2.0",
+    "express": "^4.17.1",
+    "ws": "^6.1.4"
+  }
+}

@@ -1,0 +1,31 @@
+<html>
+    <h2>LUA'S COOL TWITCH TEST BENCH</h2>
+    <div id = "frequencyLabel">
+        Frequency (ms): (1000ms)
+    </div>
+    <div class="slider">
+        <input type="range" min="10" max="5000" value="1000" class="slider" id="frequency">
+    </div>
+    <div>
+        <label for="events">Event type:</label>
+        <select name="events" id="events">
+            <option value="bits_event_v1">Bits Event (V1)</option>
+            <option value="bits_event_v2">Bits Event (V2)</option>
+            <option value="channel_point_event">Channel Point Event</option>
+            <option value="channel_sub_event">Channel Sub Event</option>
+            <option value="channel_sub_event_gift">Channel Sub Event (gift)</option>
+        </select>
+    </div>
+</html>
+<script>
+    const client = new WebSocket('ws://localhost:8080/test');
+    const frequencySlider = document.getElementById('frequency');
+    frequencySlider.addEventListener("change", function() {
+        document.getElementById("frequencyLabel").textContent = `Frequency: ${frequencySlider.value}ms`;
+        client.send(JSON.stringify({type:"FREQUENCY", data: frequencySlider.value}))
+    }, false);
+    const eventDropdown = document.getElementById('events');
+    events.addEventListener("change", function() {
+        client.send(JSON.stringify({type:"EVENT_TYPE", data: eventDropdown.selectedIndex}))
+    })
+</script>

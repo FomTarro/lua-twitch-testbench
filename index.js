@@ -13,27 +13,44 @@ const wss = new WebSocket.Server({ server: httpServer, path: '/test' });
 // in MS
 let interval = 1000;
 let timer = undefined;
-let eventType = 0;
+let bitMin = 100;
+let bitMax = 10000;
+let channelRedeemNames = [];
 
 wss.on('connection', (ws) => {
     console.log("WS client connected!");
     ws.on('message', (message) => {
         console.log(message)
         const parsed = JSON.parse(message);
-        if(parsed.type === "FREQUENCY"){
-            interval = parsed.data ? parsed.data : 1000;
+        if (parsed.type === "FREQUENCY") {
+            interval = parsed.data.value ? parsed.data.value : 1000;
             console.log(`updating frequency to: ${parsed.data}`);
-        }else if(parsed.type === "EVENT_TYPE"){
-            eventType = Math.min(Math.max(parsed.data, 0), eventList.length)
-            console.log(`updating event type to: ${parsed.data}`);
+        } else if (parsed.type === "FREQUENCY_ENABLED") {
+            if (parsed.data.enabled === true && timer === undefined) {
+                publishLoop()
+            } else if (parsed.data.enabled === false) {
+                stopPublish();
+            }
+        } else if (parsed.type === "BIT_RANGES") {
+            bitMin = parsed.data.min;
+            bitMax = parsed.data.max;
+        } else if (parsed.type === "CHANNEL_POINT_REDEEMS") {
+            channelRedeemNames = parsed.data.filter(function (e) { return e.length > 0 });
+        } else if (parsed.type === "EVENT_TYPE") {
+            const eventType = Math.min(Math.max(parsed.data.value, 0), eventList.length)
+            eventList[eventType].enabled = parsed.data.checked;
+            console.log(`updating event type ${eventType} to: ${parsed.data.checked}`);
+        } else if (parsed.type === "EVENT_PUBLISH_INSTANT") {
+            const eventType = Math.min(Math.max(parsed.data, 0), eventList.length);
+            sendOneOff(eventType);
+        } else if (parsed.type === "STATE_REQUEST") {
+            ws.send(JSON.stringify({ type: "STATE_RESPONSE", data: { frequency: { value: interval, enabled: timer !== undefined }, events: eventList, bits: { min: bitMin, max: bitMax }, redeems: channelRedeemNames } }));
         }
     });
 });
 
 wss.on('close', (ws) => {
-    if(timer){
-        clearTimeout(timer);
-    }
+
 });
 
 async function launch() {
@@ -53,12 +70,53 @@ async function launch() {
     });
 }
 
-function clone(obj){
+function clone(obj) {
     return JSON.parse(JSON.stringify(obj));
+}
+
+function makeID(length) {
+    let result = '';
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const charactersLength = characters.length;
+    for (let i = 0; i < length; i++) {
+        result += characters.charAt(Math.floor(Math.random() * charactersLength));
+    }
+    return result;
+}
+
+function getRandomUser() {
+    const id = makeID(10);
+    return {
+        display_name: `USER_${id}`,
+        user_name: `user_${id}`,
+        user_id: stringToNumber(id)
+    }
+}
+
+function stringToNumber(str) {
+    let hash = 0, i, chr;
+    if (str.length === 0) {
+        return hash;
+    }
+    for (i = 0; i < str.length; i++) {
+        chr = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + chr;
+        hash |= 0; // Convert to 32bit integer
+    }
+    return parseInt(hash);
+}
+
+function getRandomInt(min, max) {
+    min = Math.ceil(min);
+    max = Math.floor(max);
+    return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 // HEY LUA: Add randomization/cusomization inside the "Customize" functions
 // Payload definitions follow below
+
+const STREAMER_CHANNEL_NAME = "LuaVLucky";
+const STREAMER_CHANNEL_ID = 1234567890
 
 const BITS_EVENT_V1_JSON = {
     type: `MESSAGE`,
@@ -87,9 +145,16 @@ const BITS_EVENT_V1_JSON = {
     }
 }
 
-function customize_BITS_EVENT_V1_JSON(){
+function customize_BITS_EVENT_V1_JSON() {
     const copy = clone(BITS_EVENT_V1_JSON);
-    copy.data.message.data.channel_name = "LUA V LUCKY";
+    const user = getRandomUser();
+    copy.data.message.data.user_name = user.user_name;
+    copy.data.message.data.user_id = user.channel_id;
+    copy.data.message.data.channel_name = STREAMER_CHANNEL_NAME;
+    copy.data.message.data.channel_id = STREAMER_CHANNEL_ID;
+
+    copy.data.message.data.bits_used = getRandomInt(bitMin, bitMax);
+
     return copy;
 }
 
@@ -121,9 +186,16 @@ const BITS_EVENT_V2_JSON = {
     }
 }
 
-function customize_BITS_EVENT_V2_JSON(){
+function customize_BITS_EVENT_V2_JSON() {
     const copy = clone(BITS_EVENT_V2_JSON);
-    copy.data.message.data.user_name = "LUA V LUCKY";
+    const user = getRandomUser();
+    copy.data.message.data.user_name = user.display_name;
+    copy.data.message.data.user_id = user.user_id;
+    copy.data.message.data.channel_name = STREAMER_CHANNEL_NAME
+    copy.data.message.data.channel_id = STREAMER_CHANNEL_ID;
+
+    copy.data.message.data.bits_used = getRandomInt(bitMin, bitMax);
+
     return copy;
 }
 
@@ -143,8 +215,8 @@ const CHANNEL_POINTS_EVENT_JSON = {
             reward: {
                 id: `6ef17bb2-e5ae-432e-8b3f-5ac4dd774668`,
                 channel_id: 30515034,
-                title: `hit a gleesh walk on stream`,
-                prompt: `cleanside's finest`,
+                title: `redeem title`,
+                prompt: `text prompt`,
                 cost: 10,
                 is_user_input_required: true,
                 is_sub_only: false,
@@ -165,17 +237,24 @@ const CHANNEL_POINTS_EVENT_JSON = {
                 max_per_stream: { is_enabled: false, max_per_stream: 0 },
                 should_redemptions_skip_request_queue: true
             },
-            user_input: `yeooo`,
+            user_input: `user input`,
             status: `FULFILLED`
         }
     }
 }
 
-function customize_CHANNEL_POINTS_EVENT_JSON(){
+function customize_CHANNEL_POINTS_EVENT_JSON() {
     const copy = clone(CHANNEL_POINTS_EVENT_JSON);
+    const user = getRandomUser();
+    copy.data.redemption.user.login = user.user_name;
+    copy.data.redemption.user.display_name = user.display_name;
+    copy.data.redemption.user.id = user.user_id;
+
+    copy.data.redemption.reward.title = channelRedeemNames.length > 0 ? channelRedeemNames[Math.floor((Math.random() * channelRedeemNames.length))] : "MYSTERY REDEEM";
+    copy.data.redemption.reward.id = stringToNumber(copy.data.redemption.reward.title);
+    copy.data.redemption.reward.channel_id = STREAMER_CHANNEL_ID;
     return copy;
 }
-
 
 const CHANNEL_SUB_EVENT_JSON = {
     type: `MESSAGE`,
@@ -189,7 +268,7 @@ const CHANNEL_SUB_EVENT_JSON = {
             channel_id: 89614178,
             time: `2015-12-19T16:39:57-08:00`,
             sub_plan: 1000,
-            sub_plan_name: `Channel Subscription (mr_woodchuck)`,
+            sub_plan_name: `Channel Subscription`,
             cumulative_months: 9,
             streak_months: 3,
             context: `resub`,
@@ -208,8 +287,14 @@ const CHANNEL_SUB_EVENT_JSON = {
     }
 }
 
-function customize_CHANNEL_SUB_EVENT_JSON(){
+function customize_CHANNEL_SUB_EVENT_JSON() {
     const copy = clone(CHANNEL_SUB_EVENT_JSON);
+    copy.data.message.user_name = user.user_name;
+    copy.data.message.display_name = user.display_name;
+    copy.data.message.user_id = user.user_id;
+    copy.data.message.channel_name = STREAMER_CHANNEL_NAME;
+    copy.data.message.sub_plan_name = `Channel Subscription ${copy.data.message.channel_name}`;
+    copy.data.message.data.channel_id = STREAMER_CHANNEL_ID;
     return copy;
 }
 
@@ -240,32 +325,112 @@ const CHANNEL_SUB_GIFT_JSON = {
     }
 }
 
-function customize_CHANNEL_SUB_GIFT_JSON(){
+function customize_CHANNEL_SUB_GIFT_JSON() {
     const copy = clone(CHANNEL_SUB_GIFT_JSON);
+    const user = getRandomUser();
+    copy.data.message.user_name = user.user_name;
+    copy.data.message.display_name = user.display_name;
+    copy.data.message.user_id = user.user_id;
+    copy.data.message.channel_name = STREAMER_CHANNEL_NAME;
+    copy.data.message.data.channel_id = STREAMER_CHANNEL_ID;
+
+    const recipient = getRandomUser();
+    copy.data.message.recipient_user_name = recipient.user_name;
+    copy.data.message.recipient_display_name = recipient.display_name;
+    copy.data.message.recipient_id = recipient.user_id;
+    return copy;
+}
+
+const FOLLOW_JSON = {
+    type: `MESSAGE`,
+    data: {
+        topic: `following.588829844`,
+        message: {
+            display_name: `LuckyRadio`,
+            username: `luckyradio`,
+            user_id: 629200915
+        }
+    }
+}
+
+function customize_FOLLOW_JSON() {
+    const copy = clone(FOLLOW_JSON);
+    const user = getRandomUser();
+    copy.data.message.username = user.user_name;
+    copy.data.message.display_name = user.display_name;
+    copy.data.message.user_id = user.user_id;
+    return copy;
+}
+
+const STREAMELEMENTS_DONATION_JSON = {
+    _id: `62ef1aa31b93434238ed86d9`,
+    channel: `5fb777f4921bf01357ced464`,
+    type: `tip`,
+    provider: `twitch`,
+    createdAt: `2022-08-07T01:50:56.168Z`,
+    data: {
+        tipId: `62ef1a8095363a53a92b9be0`,
+        username: `LuaVLucky`,
+        amount: 1,
+        currency: `USD`,
+        message: `wooooo`,
+        avatar: `https://cdn.streamelements.com/static/default-avatar.png`
+    },
+    updatedAt: `2022-08-07T01:50:56.168Z`,
+    activityId: `62ef1aa31b93434238ed86d9`
+}
+
+function customize_STREAMELEMENTS_DONATION_JSON() {
+    const copy = clone(STREAMELEMENTS_DONATION_JSON);
+    const user = getRandomUser();
+    copy.data.username = user.user_name;
+    copy.data.amount = getRandomInt(bitMin, bitMax);
     return copy;
 }
 
 const eventList = [
-    customize_BITS_EVENT_V1_JSON,
-    customize_BITS_EVENT_V2_JSON,
-    customize_CHANNEL_POINTS_EVENT_JSON,
-    customize_CHANNEL_SUB_EVENT_JSON,
-    customize_CHANNEL_SUB_GIFT_JSON
+    { name: "Bits V1", func: customize_BITS_EVENT_V1_JSON, enabled: false },
+    { name: "Bits V2", func: customize_BITS_EVENT_V2_JSON, enabled: false },
+    { name: "Channel Points", func: customize_CHANNEL_POINTS_EVENT_JSON, enabled: false },
+    { name: "Subscription", func: customize_CHANNEL_SUB_EVENT_JSON, enabled: false },
+    { name: "Subscription (Gift)", func: customize_CHANNEL_SUB_GIFT_JSON, enabled: false },
+    { name: "Follow", func: customize_FOLLOW_JSON, enabled: false },
+    { name: "Donation (StreamElements)", func: customize_STREAMELEMENTS_DONATION_JSON, enabled: false },
 ]
 
-function publish() {
-    // makes a copy
-    const payload = eventList[eventType]();
-    // console.log(`Publishing event type: ${eventType}`)
-    if(wss && wss.clients){
+function sendPayload(payload) {
+    if (wss && wss.clients) {
         wss.clients.forEach((client) => {
             if (client.readyState === WebSocket.OPEN) {
                 client.send(JSON.stringify(payload));
             }
         });
     }
-    timer = setTimeout(publish, interval);
+}
+
+function publishLoop() {
+    // makes a copy
+    const possibleEvents = eventList.filter(function (e) { return e.enabled === true });
+    if (possibleEvents.length > 0) {
+        const payload = possibleEvents[Math.floor((Math.random() * possibleEvents.length))].func();
+        sendPayload(payload);
+    }
+    timer = setTimeout(publishLoop, interval);
+}
+
+function stopPublish() {
+    if (timer) {
+        clearTimeout(timer);
+    }
+    timer = undefined;
+}
+
+function sendOneOff(index) {
+    if (index >= 0 && index < eventList.length) {
+        const payload = eventList[index].func();
+        sendPayload(payload);
+    }
 }
 
 launch();
-publish();
+publishLoop();

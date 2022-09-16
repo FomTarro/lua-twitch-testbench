@@ -5,27 +5,132 @@
     </div>
     <div class="slider">
         <input type="range" min="10" max="5000" value="1000" class="slider" id="frequency">
+        <br>
+        <label for="frequency-enabled">Enabled?</label><input type="checkbox" id="frequency-enabled" name="frequency-enabled">
     </div>
-    <div>
+    <br>
+    <div id="events-content">
         <label for="events">Event type:</label>
-        <select name="events" id="events">
-            <option value="bits_event_v1">Bits Event (V1)</option>
-            <option value="bits_event_v2">Bits Event (V2)</option>
-            <option value="channel_point_event">Channel Point Event</option>
-            <option value="channel_sub_event">Channel Sub Event</option>
-            <option value="channel_sub_event_gift">Channel Sub Event (gift)</option>
-        </select>
+        <div id="events">
+            Loading events...
+        </div>
+        <br>
+        <label for="bit-ranges">Value ranges:</label>
+        <div id="bit-ranges">
+            <input type="number" id="bit-min" name="bit-min" min="100" max="10000" value="100" defaultValue="100">
+            <label for="bit-min">Bit Minimum (100 to 10000)</label><br>
+
+            <input type="number" id="bit-max" name="bit-max" min="100" max="10000" value="100">
+            <label for="bit-max">Bit Maximum (100 to 10000)</label><br>
+        </div>
+        <br>
+        <div id="redeem-names">
+            <label for="redeem-area">Channel Point Redeem Names (newline separated):</label><br>
+            <textarea id="redeem-area" name="redeem-area" rows="4" cols="48">
+            </textarea>
+        </div>
     </div>
 </html>
 <script>
     const client = new WebSocket('ws://localhost:8080/test');
+    client.onmessage = (e) => {
+        const parsed = JSON.parse(e.data);
+        if(parsed.type === "STATE_RESPONSE"){
+            // frequency
+            const frequencySlider = document.getElementById('frequency');
+            frequencySlider.value = parsed.data.frequency.value;
+            const frequencyLabel = document.getElementById("frequencyLabel");
+            frequencyLabel.textContent = `Frequency: ${parsed.data.frequency.value}ms`;
+            const frequencyEnabled = document.getElementById('frequency-enabled');
+            frequencyEnabled.checked = parsed.data.frequency.enabled;
+
+            // event names
+            const events = document.getElementById("events")
+            events.innerHTML = '';
+            console.log(parsed.data)
+            for(var i = 0; i < parsed.data.events.length; i++){
+                console.log(parsed.data.events[i]);
+                const eventEntry = parsed.data.events[i]
+                const input = document.createElement('input');
+                input.type = 'checkbox'
+                input.id = eventEntry.name;
+                input.name = eventEntry.name;
+                input.value = i;
+                input.checked = eventEntry.enabled;
+                input.addEventListener("change", function() {
+                    client.send(JSON.stringify({type:"EVENT_TYPE", data: { checked: input.checked, value: input.value }}))
+                });
+                const label = document.createElement('label');
+                label.for = input.id;
+                label.innerHTML = eventEntry.name;
+
+                const button = document.createElement('button');
+                button.innerHTML = "Send (Manual)"
+                button.addEventListener("click", function() { 
+                    client.send(JSON.stringify({type:"EVENT_PUBLISH_INSTANT", data: input.value }))
+                });
+
+                events.appendChild(button);
+                events.appendChild(input);
+                events.appendChild(label);
+                events.appendChild(document.createElement('br'));
+            }
+            
+            // bit ranges
+            const bitMin = document.getElementById('bit-min');
+            const bitMax = document.getElementById('bit-max');
+            bitMin.value = parsed.data.bits.min;
+            bitMax.value = parsed.data.bits.max;
+
+            // redeem names
+            const channelPointRedeems = document.getElementById('redeem-area');
+            channelPointRedeems.value = parsed.data.redeems.join('\n');
+        }
+    }
+
+    client.onopen = () => {
+        // request event list
+        client.send(JSON.stringify({type:"STATE_REQUEST"}));
+    }
+
+    // message frequency
     const frequencySlider = document.getElementById('frequency');
     frequencySlider.addEventListener("change", function() {
         document.getElementById("frequencyLabel").textContent = `Frequency: ${frequencySlider.value}ms`;
-        client.send(JSON.stringify({type:"FREQUENCY", data: frequencySlider.value}))
+        client.send(JSON.stringify({type:"FREQUENCY", data: {value: frequencySlider.value}}))
     }, false);
-    const eventDropdown = document.getElementById('events');
-    events.addEventListener("change", function() {
-        client.send(JSON.stringify({type:"EVENT_TYPE", data: eventDropdown.selectedIndex}))
-    })
+
+    const frequencyEnabled = document.getElementById('frequency-enabled');
+    frequencyEnabled.addEventListener("change", function() {
+        client.send(JSON.stringify({type:"FREQUENCY_ENABLED", data: {enabled: frequencyEnabled.checked }}))
+    }, false);
+
+    // bit ranges
+    const bitMin = document.getElementById('bit-min');
+    const bitMax = document.getElementById('bit-max');
+    bitMin.addEventListener("change", function() {
+        if(bitMin.value === undefined || bitMin.value.length <= 0){
+            bitMin.value = 100
+        }
+        if(parseInt(bitMin.value) > parseInt(bitMax.value)){
+            bitMin.value = bitMax.value;
+        }
+        client.send(JSON.stringify({type:"BIT_RANGES", data: {min: bitMin.value, max: bitMax.value }}))
+    }, false);
+    bitMax.addEventListener("change", function() {
+        if(bitMax.value === undefined || bitMax.value.length <= 0){
+            bitMax.value = 100
+        }
+        if(parseInt(bitMax.value) < parseInt(bitMin.value)){
+            bitMax.value = bitMin.value;
+        }
+        client.send(JSON.stringify({type:"BIT_RANGES", data: {min: bitMin.value, max: bitMax.value }}))
+    }, false);
+
+    // Redeem names
+    const channelPointRedeems = document.getElementById('redeem-area');
+    channelPointRedeems.addEventListener("change", function() {
+        const redeems = channelPointRedeems.value.split('\n');
+        client.send(JSON.stringify({type:"CHANNEL_POINT_REDEEMS", data: redeems }))
+    }, false);
 </script>

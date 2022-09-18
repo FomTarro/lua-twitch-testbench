@@ -3,6 +3,7 @@ const WebSocket = require('ws');
 const path = require('path');
 const express = require('express');
 const { AppConfig } = require('./app.config');
+const ChannelPointRedeemsList = require('./models');
 
 const app = express();
 // Makes an http server out of the express server
@@ -19,6 +20,7 @@ let channelRedeemNames = [];
 
 wss.on('connection', (ws) => {
     console.log("WS client connected!");
+    sendChannelRedeemsList();
     ws.on('message', (message) => {
         console.log(message)
         const parsed = JSON.parse(message);
@@ -43,6 +45,8 @@ wss.on('connection', (ws) => {
         } else if (parsed.type === "EVENT_PUBLISH_INSTANT") {
             const eventType = Math.min(Math.max(parsed.data, 0), eventList.length);
             sendOneOff(eventType);
+        }else if(parsed.type === "CHANNEL_POINT_REDEEMS_REQUEST"){
+            sendChannelRedeemsList();
         } else if (parsed.type === "STATE_REQUEST") {
             ws.send(JSON.stringify({ type: "STATE_RESPONSE", data: { frequency: { value: interval, enabled: timer !== undefined }, events: eventList, bits: { min: bitMin, max: bitMax }, redeems: channelRedeemNames } }));
         }
@@ -116,12 +120,12 @@ function getRandomInt(min, max) {
 // Payload definitions follow below
 
 const STREAMER_CHANNEL_NAME = "LuaVLucky";
-const STREAMER_CHANNEL_ID = 1234567890
+const STREAMER_CHANNEL_ID = 123456789
 
 const BITS_EVENT_V1_JSON = {
     type: `MESSAGE`,
     data: {
-        topic: `channel-bits-events-v1.44322889`,
+        topic: `channel-bits-events-v1.` + STREAMER_CHANNEL_ID,
         message: {
             data: {
                 user_name: `dallasnchains`,
@@ -139,7 +143,7 @@ const BITS_EVENT_V1_JSON = {
                 }
             },
             version: 1.0,
-            message_type: `bits_event`,
+            message_type: `bits_events`,
             message_id: `8145728a4-35f0-4cf7-9dc0-f2ef24de1eb6`
         }
     }
@@ -161,7 +165,7 @@ function customize_BITS_EVENT_V1_JSON() {
 const BITS_EVENT_V2_JSON = {
     type: `MESSAGE`,
     data: {
-        topic: `channel-bits-event-v2.46024993`,
+        topic: `channel-bits-events-v2.` + STREAMER_CHANNEL_ID,
         message: {
             data: {
                 user_name: `jwp`,
@@ -179,7 +183,7 @@ const BITS_EVENT_V2_JSON = {
                 }
             },
             version: 1.0,
-            message_type: `bits_event`,
+            message_type: `bits_events`,
             message_id: `8145728a4-35f0-4cf7-9dc0-f2ef24de1eb6`,
             is_anonymous: true
         }
@@ -200,45 +204,50 @@ function customize_BITS_EVENT_V2_JSON() {
 }
 
 const CHANNEL_POINTS_EVENT_JSON = {
-    type: `reward-redeemed`,
+    type: "MESSAGE",
     data: {
-        timestamp: `2019-11-12T01:29:34.98329743Z`,
-        redemption: {
-            id: `9203c6f0-51b6-4d1d-a9ae-8eafdb0d6d47`,
-            user: {
-                id: 30515034,
-                login: `davethecust`,
-                display_name: `davethecust`
-            },
-            channel_id: 30515034,
-            redeemed_at: `2019-12-11T18:52:53.128421623Z`,
-            reward: {
-                id: `6ef17bb2-e5ae-432e-8b3f-5ac4dd774668`,
-                channel_id: 30515034,
-                title: `redeem title`,
-                prompt: `text prompt`,
-                cost: 10,
-                is_user_input_required: true,
-                is_sub_only: false,
-                image: {
-                    url_1x: `https://static-cdn.jtvnw.net/custom-reward-images/30515034/6ef17bb2-e5ae-432e-8b3f-5ac4dd774668/7bcd9ca8-da17-42c9-800a-2f08832e5d4b/custom-1.png`,
-                    url_2x: `https://static-cdn.jtvnw.net/custom-reward-images/30515034/6ef17bb2-e5ae-432e-8b3f-5ac4dd774668/7bcd9ca8-da17-42c9-800a-2f08832e5d4b/custom-2.png`,
-                    url_4x: `https://static-cdn.jtvnw.net/custom-reward-images/30515034/6ef17bb2-e5ae-432e-8b3f-5ac4dd774668/7bcd9ca8-da17-42c9-800a-2f08832e5d4b/custom-4.png`
-                },
-                default_image: {
-                    url_1x: `https://static-cdn.jtvnw.net/custom-reward-images/default-1.png`,
-                    url_2x: `https://static-cdn.jtvnw.net/custom-reward-images/default-2.png`,
-                    url_4x: `https://static-cdn.jtvnw.net/custom-reward-images/default-4.png`
-                },
-                background_color: `#00C7AC`,
-                is_enabled: true,
-                is_paused: false,
-                is_in_stock: true,
-                max_per_stream: { is_enabled: false, max_per_stream: 0 },
-                should_redemptions_skip_request_queue: true
-            },
-            user_input: `user input`,
-            status: `FULFILLED`
+        topic: "channel-points-channel-v1." + STREAMER_CHANNEL_ID,
+        message: {
+            type: `reward-redeemed`,
+            data: {
+                timestamp: `2019-11-12T01:29:34.98329743Z`,
+                redemption: {
+                    id: `9203c6f0-51b6-4d1d-a9ae-8eafdb0d6d47`,
+                    user: {
+                        id: 30515034,
+                        login: `davethecust`,
+                        display_name: `davethecust`
+                    },
+                    channel_id: 30515034,
+                    redeemed_at: `2019-12-11T18:52:53.128421623Z`,
+                    reward: {
+                        id: `6ef17bb2-e5ae-432e-8b3f-5ac4dd774668`,
+                        channel_id: 30515034,
+                        title: `redeem title`,
+                        prompt: `text prompt`,
+                        cost: 10,
+                        is_user_input_required: true,
+                        is_sub_only: false,
+                        image: {
+                            url_1x: `https://static-cdn.jtvnw.net/custom-reward-images/30515034/6ef17bb2-e5ae-432e-8b3f-5ac4dd774668/7bcd9ca8-da17-42c9-800a-2f08832e5d4b/custom-1.png`,
+                            url_2x: `https://static-cdn.jtvnw.net/custom-reward-images/30515034/6ef17bb2-e5ae-432e-8b3f-5ac4dd774668/7bcd9ca8-da17-42c9-800a-2f08832e5d4b/custom-2.png`,
+                            url_4x: `https://static-cdn.jtvnw.net/custom-reward-images/30515034/6ef17bb2-e5ae-432e-8b3f-5ac4dd774668/7bcd9ca8-da17-42c9-800a-2f08832e5d4b/custom-4.png`
+                        },
+                        default_image: {
+                            url_1x: `https://static-cdn.jtvnw.net/custom-reward-images/default-1.png`,
+                            url_2x: `https://static-cdn.jtvnw.net/custom-reward-images/default-2.png`,
+                            url_4x: `https://static-cdn.jtvnw.net/custom-reward-images/default-4.png`
+                        },
+                        background_color: `#00C7AC`,
+                        is_enabled: true,
+                        is_paused: false,
+                        is_in_stock: true,
+                        max_per_stream: { is_enabled: false, max_per_stream: 0 },
+                        should_redemptions_skip_request_queue: true
+                    },
+                    status: `FULFILLED`
+                }
+            }
         }
     }
 }
@@ -246,20 +255,21 @@ const CHANNEL_POINTS_EVENT_JSON = {
 function customize_CHANNEL_POINTS_EVENT_JSON() {
     const copy = clone(CHANNEL_POINTS_EVENT_JSON);
     const user = getRandomUser();
-    copy.data.redemption.user.login = user.user_name;
-    copy.data.redemption.user.display_name = user.display_name;
-    copy.data.redemption.user.id = user.user_id;
 
-    copy.data.redemption.reward.title = channelRedeemNames.length > 0 ? channelRedeemNames[Math.floor((Math.random() * channelRedeemNames.length))] : "MYSTERY REDEEM";
-    copy.data.redemption.reward.id = stringToNumber(copy.data.redemption.reward.title);
-    copy.data.redemption.reward.channel_id = STREAMER_CHANNEL_ID;
+    copy.data.message.data.redemption.user.login = user.user_name;
+    copy.data.message.data.redemption.user.display_name = user.display_name;
+    copy.data.message.data.redemption.user.id = user.user_id;
+
+    copy.data.message.data.redemption.reward.title = channelRedeemNames.length > 0 ? channelRedeemNames[Math.floor((Math.random() * channelRedeemNames.length))] : "MYSTERY REDEEM";
+    copy.data.message.data.redemption.reward.id = stringToNumber(copy.data.message.data.redemption.reward.title);
+    copy.data.message.data.redemption.reward.channel_id = STREAMER_CHANNEL_ID;
     return copy;
 }
 
 const CHANNEL_SUB_EVENT_JSON = {
     type: `MESSAGE`,
     data: {
-        topic: `channel-subscribe-events-v1.44322889`,
+        topic: `channel-subscribe-events-v1.` + STREAMER_CHANNEL_ID,
         message: {
             user_name: `tww2`,
             display_name: `TWW2`,
@@ -288,20 +298,22 @@ const CHANNEL_SUB_EVENT_JSON = {
 }
 
 function customize_CHANNEL_SUB_EVENT_JSON() {
+    const user = getRandomUser();
+
     const copy = clone(CHANNEL_SUB_EVENT_JSON);
     copy.data.message.user_name = user.user_name;
     copy.data.message.display_name = user.display_name;
     copy.data.message.user_id = user.user_id;
     copy.data.message.channel_name = STREAMER_CHANNEL_NAME;
     copy.data.message.sub_plan_name = `Channel Subscription ${copy.data.message.channel_name}`;
-    copy.data.message.data.channel_id = STREAMER_CHANNEL_ID;
+    copy.data.message.channel_id = STREAMER_CHANNEL_ID;
     return copy;
 }
 
 const CHANNEL_SUB_GIFT_JSON = {
     type: `MESSAGE`,
     data: {
-        topic: `channel-subscribe-events-v1.44322889`,
+        topic: `channel-subscribe-events-v1.` + STREAMER_CHANNEL_ID,
         message: {
             user_name: `tww2`,
             display_name: `TWW2`,
@@ -332,7 +344,7 @@ function customize_CHANNEL_SUB_GIFT_JSON() {
     copy.data.message.display_name = user.display_name;
     copy.data.message.user_id = user.user_id;
     copy.data.message.channel_name = STREAMER_CHANNEL_NAME;
-    copy.data.message.data.channel_id = STREAMER_CHANNEL_ID;
+    copy.data.message.channel_id = STREAMER_CHANNEL_ID;
 
     const recipient = getRandomUser();
     copy.data.message.recipient_user_name = recipient.user_name;
@@ -344,7 +356,7 @@ function customize_CHANNEL_SUB_GIFT_JSON() {
 const FOLLOW_JSON = {
     type: `MESSAGE`,
     data: {
-        topic: `following.588829844`,
+        topic: `following.` + STREAMER_CHANNEL_ID,
         message: {
             display_name: `LuckyRadio`,
             username: `luckyradio`,
@@ -430,6 +442,11 @@ function sendOneOff(index) {
         const payload = eventList[index].func();
         sendPayload(payload);
     }
+}
+
+function sendChannelRedeemsList(){
+    const redeems = channelRedeemNames.map((x) => {return {name: x, id: stringToNumber(x)}; });
+    sendPayload(new ChannelPointRedeemsList(STREAMER_CHANNEL_ID, redeems));
 }
 
 launch();

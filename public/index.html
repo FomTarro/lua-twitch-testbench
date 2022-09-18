@@ -30,6 +30,7 @@
             </textarea>
         </div>
     </div>
+    <button id="redeems-list-request">Get Channel Point Redeems ID List</button>
 </html>
 <script>
     const client = new WebSocket('ws://localhost:8080/test');
@@ -133,4 +134,8 @@
         const redeems = channelPointRedeems.value.split('\n');
         client.send(JSON.stringify({type:"CHANNEL_POINT_REDEEMS", data: redeems }))
     }, false);
+
+    const channelPointRedeemsList = document.getElementById('redeems-list-request').addEventListener("click", function() {
+        client.send(JSON.stringify({type: "CHANNEL_POINT_REDEEMS_REQUEST"}));
+    })
 </script>

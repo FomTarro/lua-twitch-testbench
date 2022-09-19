@@ -158,8 +158,7 @@ function customize_BITS_EVENT_V1_JSON() {
     copy.data.message.data.channel_id = STREAMER_CHANNEL_ID;
 
     copy.data.message.data.bits_used = getRandomInt(bitMin, bitMax);
-
-    return copy;
+    return twitchify(copy);
 }
 
 const BITS_EVENT_V2_JSON = {
@@ -199,8 +198,7 @@ function customize_BITS_EVENT_V2_JSON() {
     copy.data.message.data.channel_id = STREAMER_CHANNEL_ID;
 
     copy.data.message.data.bits_used = getRandomInt(bitMin, bitMax);
-
-    return copy;
+    return twitchify(copy);
 }
 
 const CHANNEL_POINTS_EVENT_JSON = {
@@ -263,7 +261,7 @@ function customize_CHANNEL_POINTS_EVENT_JSON() {
     copy.data.message.data.redemption.reward.title = channelRedeemNames.length > 0 ? channelRedeemNames[Math.floor((Math.random() * channelRedeemNames.length))] : "MYSTERY REDEEM";
     copy.data.message.data.redemption.reward.id = stringToNumber(copy.data.message.data.redemption.reward.title);
     copy.data.message.data.redemption.reward.channel_id = STREAMER_CHANNEL_ID;
-    return copy;
+    return twitchify(copy);
 }
 
 const CHANNEL_SUB_EVENT_JSON = {
@@ -307,7 +305,7 @@ function customize_CHANNEL_SUB_EVENT_JSON() {
     copy.data.message.channel_name = STREAMER_CHANNEL_NAME;
     copy.data.message.sub_plan_name = `Channel Subscription ${copy.data.message.channel_name}`;
     copy.data.message.channel_id = STREAMER_CHANNEL_ID;
-    return copy;
+    return twitchify(copy);
 }
 
 const CHANNEL_SUB_GIFT_JSON = {
@@ -350,7 +348,7 @@ function customize_CHANNEL_SUB_GIFT_JSON() {
     copy.data.message.recipient_user_name = recipient.user_name;
     copy.data.message.recipient_display_name = recipient.display_name;
     copy.data.message.recipient_id = recipient.user_id;
-    return copy;
+    return twitchify(copy);
 }
 
 const FOLLOW_JSON = {
@@ -371,7 +369,14 @@ function customize_FOLLOW_JSON() {
     copy.data.message.username = user.user_name;
     copy.data.message.display_name = user.display_name;
     copy.data.message.user_id = user.user_id;
-    return copy;
+    return twitchify(copy);
+}
+
+function twitchify(obj){
+    if(obj.data){
+        obj.data = JSON.stringify(obj.data);
+    }
+    return obj;
 }
 
 const STREAMELEMENTS_DONATION_JSON = {

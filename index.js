@@ -373,8 +373,8 @@ function customize_FOLLOW_JSON() {
 }
 
 function twitchify(obj){
-    if(obj.data){
-        obj.data = JSON.stringify(obj.data);
+    if(obj.data && obj.data.message){
+        obj.data.message = JSON.stringify(obj.data.message);
     }
     return obj;
 }

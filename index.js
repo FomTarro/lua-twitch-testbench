@@ -401,13 +401,13 @@ function customize_STREAMELEMENTS_DONATION_JSON() {
 }
 
 const eventList = [
-    { name: "Bits V1", func: customize_BITS_EVENT_V1_JSON, enabled: false },
-    { name: "Bits V2", func: customize_BITS_EVENT_V2_JSON, enabled: false },
-    { name: "Channel Points", func: customize_CHANNEL_POINTS_EVENT_JSON, enabled: false },
-    { name: "Subscription", func: customize_CHANNEL_SUB_EVENT_JSON, enabled: false },
-    { name: "Subscription (Gift)", func: customize_CHANNEL_SUB_GIFT_JSON, enabled: false },
-    { name: "Follow", func: customize_FOLLOW_JSON, enabled: false },
-    { name: "Donation (StreamElements)", func: customize_STREAMELEMENTS_DONATION_JSON, enabled: false },
+    { name: "Bits V1", func: customize_BITS_EVENT_V1_JSON, enabled: false, quantity: () => {return 1} },
+    { name: "Bits V2", func: customize_BITS_EVENT_V2_JSON, enabled: false, quantity: () => {return 1} },
+    { name: "Channel Points", func: customize_CHANNEL_POINTS_EVENT_JSON, enabled: false, quantity: () => {return 1} },
+    { name: "Subscription", func: customize_CHANNEL_SUB_EVENT_JSON, enabled: false, quantity: () => {return 1} },
+    { name: "Subscription (Gift)", func: customize_CHANNEL_SUB_GIFT_JSON, enabled: false, quantity: () => {return Math.floor(Math.random() * 100)} },
+    { name: "Follow", func: customize_FOLLOW_JSON, enabled: false, quantity: () => {return 1}},
+    { name: "Donation (StreamElements)", func: customize_STREAMELEMENTS_DONATION_JSON, enabled: false, quantity: () => {return 1} },
 ]
 
 function sendPayload(payload) {
@@ -424,8 +424,12 @@ function publishLoop() {
     // makes a copy
     const possibleEvents = eventList.filter(function (e) { return e.enabled === true });
     if (possibleEvents.length > 0) {
-        const payload = possibleEvents[Math.floor((Math.random() * possibleEvents.length))].func();
-        sendPayload(payload);
+        const chosen = possibleEvents[Math.floor((Math.random() * possibleEvents.length))];
+        const quantity = chosen.quantity()
+        for(let i = 0; i < quantity; i++){
+            const payload = chosen.func();
+            sendPayload(payload);
+        }
     }
     timer = setTimeout(publishLoop, interval);
 }
@@ -439,8 +443,12 @@ function stopPublish() {
 
 function sendOneOff(index) {
     if (index >= 0 && index < eventList.length) {
-        const payload = eventList[index].func();
-        sendPayload(payload);
+        const chosen = eventList[index];
+        const quantity = chosen.quantity()
+        for(let i = 0; i < quantity; i++){
+            const payload = chosen.func();
+            sendPayload(payload);
+        }
     }
 }
 
